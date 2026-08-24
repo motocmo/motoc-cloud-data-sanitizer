@@ -26,7 +26,10 @@ REQUIRED = [
 ]
 
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
-TAG_RE = re.compile(r"^v\d+\.\d+\.\d+$")
+# Accept SemVer tags including prerelease (e.g. v0.1.0, v0.1.0-rc.1).
+TAG_RE = re.compile(
+    r"^v(?P<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$"
+)
 
 
 def sha256_file(path: Path) -> str:
@@ -151,7 +154,8 @@ def main() -> int:
         "locales": ["en-US", "zh-CN", "zh-HK"],
         "formats": ["csv", "xlsx"],
         "build_time": build_time,
-        "sbom": "sbom.cdx.json",
+        "sbom": "SBOM.json",
+        "sbom_cyclonedx": "sbom.cdx.json",
         "provenance": "provenance.json",
         "artifacts": artifacts,
     }
@@ -185,9 +189,9 @@ def main() -> int:
             for item in artifacts
         ],
     }
-    (args.output_dir / "sbom.cdx.json").write_text(
-        json.dumps(sbom, indent=2) + "\n", encoding="utf-8"
-    )
+    sbom_text = json.dumps(sbom, indent=2) + "\n"
+    (args.output_dir / "sbom.cdx.json").write_text(sbom_text, encoding="utf-8")
+    (args.output_dir / "SBOM.json").write_text(sbom_text, encoding="utf-8")
 
     provenance = {
         "schema_version": "1.0",

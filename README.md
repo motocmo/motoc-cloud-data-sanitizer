@@ -1,16 +1,41 @@
 # MOTOC Cloud Data Sanitizer
 
-Local-first desktop tool that sanitizes cloud billing CSV/XLSX files on the customer
-device using **HMAC-SHA-256 Stable Pseudonymization** (稳定假名化).
+Privacy-first desktop software for preparing cloud billing files before FinOps
+analysis.
 
-## Features
+Cloud Data Sanitizer runs entirely on your device. It helps you inspect CSV and
+XLSX billing exports, protect sensitive identifiers, and produce an
+analysis-ready copy—without uploading data or connecting to cloud accounts.
 
-- Local CSV and XLSX processing (no cloud upload)
-- Field detection and explicit sanitization choices
-- Stable Pseudonymization with a customer-local key
-- SHA-256 integrity sidecar for sanitized outputs
-- Desktop UI locales: `en-US`, `zh-CN`, `zh-HK`
-- Free MVP platforms: macOS arm64, macOS x64, Windows x64
+## Why it exists
+
+FinOps analysis needs billing facts such as cost, currency, service, and usage
+period. It does not need raw account identifiers, host names, or credential-like
+columns.
+
+This tool prepares that safer local copy so you can share sanitized billing data
+on your own terms.
+
+## What you get
+
+- **Local-first processing** — files never leave your device during sanitization
+- **CSV and XLSX support** — common cloud billing export formats
+- **Sensitive identifier protection** — HMAC-SHA-256 Stable Pseudonymization
+  (稳定假名化) with your local key
+- **Restricted credential handling** — credential-like columns are dropped, not
+  masked and treated as safe
+- **Integrity checks** — SHA-256 sidecar for every sanitized output
+- **Languages** — `en-US`, `zh-CN`, `zh-HK`
+- **Platforms** — macOS Apple Silicon, macOS Intel, Windows x64
+
+## What it does not do
+
+- Connect to Azure, AWS, Alibaba Cloud, or other cloud APIs
+- Request cloud access keys, tokens, or passwords
+- Upload files automatically
+- Calculate savings, Findings, or FinOps recommendations
+
+Technical security detail: [Security Design](docs/public/SECURITY-DESIGN.md).
 
 ## Documentation
 
@@ -43,10 +68,11 @@ cloud-sanitize sanitize billing.csv billing_sanitized.csv \
 cloud-sanitize verify billing_sanitized.csv
 ```
 
-## Security terms
+## Releases
 
-Use **Stable Pseudonymization / 稳定假名化**. Do not describe the control as irreversible
-anonymization.
+Download signed platform packages from GitHub Releases when published. Verify
+checksums before use. Release candidates are for evaluation and are not a final
+production declaration until maintainers confirm acceptance.
 
 ## License
 

@@ -65,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     if reviewed:
         print(
             "PASS with reviewed unavoidable QtNetwork dependency "
-            f"({len(reviewed)} paths). See docs/NETWORK-BOUNDARY.md"
+            f"({len(reviewed)} paths). See docs/public/SECURITY-DESIGN.md"
         )
     else:
         print(f"PASS: no network components in {args.package.name}")

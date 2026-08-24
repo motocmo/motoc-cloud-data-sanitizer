@@ -7,7 +7,9 @@ name: release
 on:
   push:
     tags:
+      # SemVer and prerelease tags: v0.1.0, v0.1.0-rc.1
       - "v*.*.*"
+      - "v*.*.*-*"
 
 permissions:
   contents: write
@@ -15,14 +17,6 @@ permissions:
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
-
-env:
-  # Reviewed third-party Action pins (commit SHAs).
-  # checkout v4.2.2, setup-python v5.4.0, upload-artifact v4.6.0, download-artifact v4.1.8
-  ACTION_CHECKOUT: 11bd71901bbe5b1630ceea73d27597364c9af683
-  ACTION_SETUP_PYTHON: 42375524e23c412d93fb67b49958b491fce71c38
-  ACTION_UPLOAD_ARTIFACT: 65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
-  ACTION_DOWNLOAD_ARTIFACT: fa0a91b85d4f404e444e00e028009469f41c6c80
 
 jobs:
   build-macos-arm64:
@@ -163,18 +157,34 @@ jobs:
             --output-dir release-artifacts/final
           python - <<'PY'
           import json
-          m=json.load(open("release-artifacts/final/release-manifest.json"))
+          from pathlib import Path
+          final = Path("release-artifacts/final")
+          m = json.load(open(final / "release-manifest.json"))
           assert m["source_tag"].startswith("v")
-          assert len(m["source_commit"])==40
-          assert len(m["artifacts"])==3
+          assert len(m["source_commit"]) == 40
+          assert len(m["artifacts"]) == 3
           for art in m["artifacts"]:
-              assert art["signature_status"]=="verified", art
-              assert art["size_bytes"]>0
+              assert art["signature_status"] == "verified", art
+              assert art["size_bytes"] > 0
+              assert art["sha256"]
+          for required in (
+              "SHA256SUMS.txt",
+              "release-manifest.json",
+              "SBOM.json",
+              "sbom.cdx.json",
+              "provenance.json",
+          ):
+              assert (final / required).is_file(), required
           PY
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          NOTES_FILE=".github/release-notes/${GITHUB_REF_NAME}.md"
+          if [ ! -f "$NOTES_FILE" ]; then
+            echo "FAIL CLOSED: missing release notes file $NOTES_FILE"
+            exit 1
+          fi
           gh release create "$GITHUB_REF_NAME" \
             release-artifacts/final/CloudDataSanitizer-macos-arm64.zip \
             release-artifacts/final/CloudDataSanitizer-macos-arm64.zip.sha256 \
@@ -184,8 +194,10 @@ jobs:
             release-artifacts/final/CloudDataSanitizer-windows-x64.zip.sha256 \
             release-artifacts/final/SHA256SUMS.txt \
             release-artifacts/final/release-manifest.json \
+            release-artifacts/final/SBOM.json \
             release-artifacts/final/sbom.cdx.json \
             release-artifacts/final/provenance.json \
-            --title "$GITHUB_REF_NAME" \
-            --notes "Cloud Data Sanitizer $GITHUB_REF_NAME — signed local-first Free MVP artifacts." \
-            --verify-tag
+            --title "v${GITHUB_REF_NAME#v}: MOTOC Cloud Data Sanitizer Release Candidate" \
+            --notes-file "$NOTES_FILE" \
+            --verify-tag \
+            --draft

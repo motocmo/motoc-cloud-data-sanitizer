@@ -11,6 +11,17 @@ from scripts.inspect_package_network import inspect_zip
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_assemble_release_accepts_prerelease_tag_shape() -> None:
+    import re
+
+    from scripts import assemble_release as mod
+
+    assert mod.TAG_RE.match("v0.1.0")
+    assert mod.TAG_RE.match("v0.1.0-rc.1")
+    assert not mod.TAG_RE.match("0.1.0-rc.1")
+    assert re.fullmatch(mod.TAG_RE, "v0.1.0-rc.1")
+
+
 def test_assemble_release_fails_closed_without_verified_trust(tmp_path: Path) -> None:
     import subprocess
     import sys
@@ -29,9 +40,9 @@ def test_assemble_release_fails_closed_without_verified_trust(tmp_path: Path) ->
             sys.executable,
             str(ROOT / "scripts" / "assemble_release.py"),
             "--version",
-            "0.1.0",
+            "0.1.0-rc.1",
             "--tag",
-            "v0.1.0",
+            "v0.1.0-rc.1",
             "--commit",
             "a" * 40,
             "--input-dir",
