@@ -25,7 +25,7 @@ The application must not cross the network boundary while processing.
 | --- | --- | --- |
 | Honest-but-curious analyst receiving sanitized files | Recover identifiers | Domain-separated HMAC, no shared product key, no mapping beside output |
 | Malware on customer device | Steal key / raw files | OS key store; never log keys; session-key option |
-| Supply-chain attacker | Trojans in release | Signed builds, checksums, provenance (release pipeline) |
+| Supply-chain attacker | Trojans in release | Checksums, source binding, SBOM, provenance; publisher signing remains a future hardening control |
 | Accidental operator | Overwrite source / leak secrets | Refuse overwrite; Restricted columns dropped; safe errors |
 
 ## Explicit non-goals
@@ -39,4 +39,6 @@ The application must not cross the network boundary while processing.
 
 - Low-entropy identifiers may remain linkable within one customer key context
 - Key rotation intentionally breaks correlation; users must understand this
-- Unsigned local developer builds are not production release evidence
+- Published evaluation packages are explicitly unsigned and may trigger operating
+  system security warnings
+- Unsigned evaluation packages are not production release evidence

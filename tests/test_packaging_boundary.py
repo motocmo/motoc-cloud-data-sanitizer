@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import zipfile
 from pathlib import Path
 
@@ -56,6 +57,65 @@ def test_assemble_release_fails_closed_without_verified_trust(tmp_path: Path) ->
     )
     assert proc.returncode != 0
     assert "FAIL CLOSED" in proc.stderr + proc.stdout
+
+
+def test_assemble_evaluation_release_records_unsigned_status(tmp_path: Path) -> None:
+    import subprocess
+    import sys
+
+    input_dir = tmp_path / "in"
+    output_dir = tmp_path / "out"
+    input_dir.mkdir()
+    artifacts = (
+        ("CloudDataSanitizer-macos-arm64.zip", "not_attempted"),
+        ("CloudDataSanitizer-macos-x64.zip", "not_attempted"),
+        ("CloudDataSanitizer-windows-x64.zip", "n/a"),
+    )
+    for name, notarization in artifacts:
+        (input_dir / name).write_bytes(f"placeholder:{name}".encode())
+        trust_name = name.removesuffix(".zip") + ".trust.json"
+        (input_dir / trust_name).write_text(
+            json.dumps(
+                {
+                    "signature_status": "unsigned_evaluation",
+                    "notarization_status": notarization,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "assemble_release.py"),
+            "--version",
+            "0.1.0-rc.1",
+            "--tag",
+            "v0.1.0-rc.1",
+            "--commit",
+            "b" * 40,
+            "--release-kind",
+            "evaluation",
+            "--input-dir",
+            str(input_dir),
+            "--output-dir",
+            str(output_dir),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    manifest = json.loads((output_dir / "release-manifest.json").read_text())
+    provenance = json.loads((output_dir / "provenance.json").read_text())
+    assert manifest["release_kind"] == "evaluation"
+    assert manifest["production_ready"] is False
+    assert {item["signature_status"] for item in manifest["artifacts"]} == {
+        "unsigned_evaluation"
+    }
+    assert provenance["release_kind"] == "evaluation"
+    assert provenance["production_ready"] is False
 
 
 def test_build_script_fails_closed_without_signing_env(monkeypatch: pytest.MonkeyPatch) -> None:

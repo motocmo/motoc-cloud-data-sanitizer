@@ -1,6 +1,6 @@
-# Protected release pipeline — triggered by immutable v* tags only.
-# Signing secrets are environment-scoped and never available to pull requests.
-# Publication FAIL CLOSED unless all three platforms are signed/notarized/verified.
+# Unsigned evaluation pipeline — triggered by immutable v* tags only.
+# Every package is explicitly marked unsigned and must never be represented as a
+# signed, notarized, production-ready, or enterprise release.
 
 name: release
 
@@ -21,30 +21,24 @@ concurrency:
 jobs:
   build-macos-arm64:
     runs-on: macos-15
-    environment: macos-notarization
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: "3.12"
-      - name: Build signed macOS arm64
-        env:
-          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
-          MACOS_NOTARY_PROFILE: ${{ secrets.MACOS_NOTARY_PROFILE }}
+      - name: Build unsigned macOS arm64 evaluation package
         run: |
-          test -n "$MACOS_CODESIGN_IDENTITY"
-          test -n "$MACOS_NOTARY_PROFILE"
           python -m pip install --upgrade pip
           pip install -r requirements.lock.txt
-          pip install -e ".[dev,desktop]"
+          pip install ".[dev,desktop]"
           pytest -q
-          python scripts/build_pyinstaller.py --os macos --arch arm64
+          python scripts/build_pyinstaller.py --os macos --arch arm64 --unsigned-evaluation
           test -f packaging/dist/CloudDataSanitizer-macos-arm64.trust.json
           python - <<'PY'
           import json
           trust=json.load(open("packaging/dist/CloudDataSanitizer-macos-arm64.trust.json"))
-          assert trust["signature_status"]=="verified", trust
-          assert trust["notarization_status"]=="verified", trust
+          assert trust["signature_status"]=="unsigned_evaluation", trust
+          assert trust["notarization_status"]=="not_attempted", trust
           PY
       - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
         with:
@@ -57,30 +51,24 @@ jobs:
 
   build-macos-x64:
     runs-on: macos-15-intel
-    environment: macos-notarization
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: "3.12"
-      - name: Build signed macOS x64
-        env:
-          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
-          MACOS_NOTARY_PROFILE: ${{ secrets.MACOS_NOTARY_PROFILE }}
+      - name: Build unsigned macOS x64 evaluation package
         run: |
-          test -n "$MACOS_CODESIGN_IDENTITY"
-          test -n "$MACOS_NOTARY_PROFILE"
           python -m pip install --upgrade pip
           pip install -r requirements.lock.txt
-          pip install -e ".[dev,desktop]"
+          pip install ".[dev,desktop]"
           pytest -q
-          python scripts/build_pyinstaller.py --os macos --arch x64
+          python scripts/build_pyinstaller.py --os macos --arch x64 --unsigned-evaluation
           test -f packaging/dist/CloudDataSanitizer-macos-x64.trust.json
           python - <<'PY'
           import json
           trust=json.load(open("packaging/dist/CloudDataSanitizer-macos-x64.trust.json"))
-          assert trust["signature_status"]=="verified", trust
-          assert trust["notarization_status"]=="verified", trust
+          assert trust["signature_status"]=="unsigned_evaluation", trust
+          assert trust["notarization_status"]=="not_attempted", trust
           PY
       - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
         with:
@@ -93,29 +81,25 @@ jobs:
 
   build-windows-x64:
     runs-on: windows-2025
-    environment: windows-signing
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: "3.12"
-      - name: Build Authenticode-signed Windows x64
-        env:
-          WINDOWS_CERT_PATH: ${{ secrets.WINDOWS_CERT_PATH }}
-          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+      - name: Build unsigned Windows x64 evaluation package
         shell: bash
         run: |
-          test -n "$WINDOWS_CERT_PATH"
           python -m pip install --upgrade pip
           pip install -r requirements.lock.txt
-          pip install -e ".[dev,desktop]"
+          pip install ".[dev,desktop]"
           pytest -q
-          python scripts/build_pyinstaller.py --os windows --arch x64
+          python scripts/build_pyinstaller.py --os windows --arch x64 --unsigned-evaluation
           test -f packaging/dist/CloudDataSanitizer-windows-x64.trust.json
           python - <<'PY'
           import json
           trust=json.load(open("packaging/dist/CloudDataSanitizer-windows-x64.trust.json"))
-          assert trust["signature_status"]=="verified", trust
+          assert trust["signature_status"]=="unsigned_evaluation", trust
+          assert trust["notarization_status"]=="n/a", trust
           PY
       - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
         with:
@@ -153,6 +137,7 @@ jobs:
             --version "${GITHUB_REF_NAME#v}" \
             --tag "$GITHUB_REF_NAME" \
             --commit "$GITHUB_SHA" \
+            --release-kind evaluation \
             --input-dir release-artifacts \
             --output-dir release-artifacts/final
           python - <<'PY'
@@ -163,8 +148,10 @@ jobs:
           assert m["source_tag"].startswith("v")
           assert len(m["source_commit"]) == 40
           assert len(m["artifacts"]) == 3
+          assert m["release_kind"] == "evaluation"
+          assert m["production_ready"] is False
           for art in m["artifacts"]:
-              assert art["signature_status"] == "verified", art
+              assert art["signature_status"] == "unsigned_evaluation", art
               assert art["size_bytes"] > 0
               assert art["sha256"]
           for required in (
@@ -176,7 +163,7 @@ jobs:
           ):
               assert (final / required).is_file(), required
           PY
-      - name: Publish GitHub Release
+      - name: Create unsigned evaluation draft prerelease
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -197,7 +184,8 @@ jobs:
             release-artifacts/final/SBOM.json \
             release-artifacts/final/sbom.cdx.json \
             release-artifacts/final/provenance.json \
-            --title "v${GITHUB_REF_NAME#v}: MOTOC Cloud Data Sanitizer Release Candidate" \
+            --title "v${GITHUB_REF_NAME#v}: MOTOC Cloud Data Sanitizer — Unsigned Evaluation" \
             --notes-file "$NOTES_FILE" \
             --verify-tag \
+            --prerelease \
             --draft

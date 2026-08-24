@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Native PyInstaller packaging helper (no cross-compilation).
 
-Release builds (--unsigned omitted) FAIL CLOSED unless native signing and
-verification succeed. Smoke builds may pass --unsigned.
+Signed release builds (unsigned flags omitted) FAIL CLOSED unless native signing
+and verification succeed. Smoke and public evaluation builds are explicitly
+marked unsigned and must never be represented as production-ready artifacts.
 """
 
 from __future__ import annotations
@@ -231,12 +232,20 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--os", dest="os_name")
     parser.add_argument("--arch")
-    parser.add_argument(
+    unsigned_group = parser.add_mutually_exclusive_group()
+    unsigned_group.add_argument(
         "--unsigned",
         action="store_true",
         help="CI/smoke only. Release builds must omit this flag.",
     )
+    unsigned_group.add_argument(
+        "--unsigned-evaluation",
+        action="store_true",
+        help="Build a public evaluation artifact explicitly marked unsigned.",
+    )
     args = parser.parse_args()
+
+    is_unsigned = args.unsigned or args.unsigned_evaluation
 
     host_os, host_arch = detect_target()
     os_name = args.os_name or host_os
@@ -245,7 +254,7 @@ def main() -> int:
         raise SystemExit(
             f"Refusing cross-compile: host={host_os}/{host_arch} requested={os_name}/{arch}"
         )
-    require_cpython_312(unsigned=args.unsigned)
+    require_cpython_312(unsigned=is_unsigned)
 
     DIST.mkdir(parents=True, exist_ok=True)
     WORK.mkdir(parents=True, exist_ok=True)
@@ -313,9 +322,13 @@ def main() -> int:
         )
 
     trust: dict[str, str]
-    if args.unsigned:
+    if is_unsigned:
         trust = {
-            "signature_status": "unsigned_smoke",
+            "signature_status": (
+                "unsigned_evaluation"
+                if args.unsigned_evaluation
+                else "unsigned_smoke"
+            ),
             "notarization_status": "not_attempted"
             if os_name == "macos"
             else "n/a",
@@ -363,7 +376,7 @@ def main() -> int:
         + "\n",
         encoding="utf-8",
     )
-    if not args.unsigned and trust["signature_status"] != "verified":
+    if not is_unsigned and trust["signature_status"] != "verified":
         raise SystemExit("FAIL CLOSED: signature_status is not verified")
     print(
         f"Built {zip_path.name} "

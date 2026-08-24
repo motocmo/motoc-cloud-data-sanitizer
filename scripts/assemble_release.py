@@ -4,8 +4,9 @@
 FAIL CLOSED rules:
 - all three platform ZIPs required
 - source tag + full 40-char commit required
-- every artifact trust.json must report signature_status=verified
-- pending/unsigned/unverified states abort publication
+- signed releases require verified signatures and macOS notarization
+- evaluation releases require every artifact to report unsigned_evaluation
+- mixed or ambiguous trust states abort publication
 - no absolute developer paths in emitted metadata
 """
 
@@ -49,7 +50,9 @@ def find_file(input_dir: Path, name: str) -> Path:
     return matches[0]
 
 
-def load_trust(input_dir: Path, zip_name: str) -> dict[str, str]:
+def load_trust(
+    input_dir: Path, zip_name: str, *, release_kind: str
+) -> dict[str, str]:
     trust_name = zip_name.removesuffix(".zip") + ".trust.json"
     matches = list(input_dir.rglob(trust_name))
     if not matches:
@@ -57,23 +60,45 @@ def load_trust(input_dir: Path, zip_name: str) -> dict[str, str]:
     payload = json.loads(matches[0].read_text(encoding="utf-8"))
     signature = payload.get("signature_status")
     notarization = payload.get("notarization_status")
-    if signature != "verified":
-        raise SystemExit(
-            f"FAIL CLOSED: {zip_name} signature_status={signature!r} (required verified)"
+    if release_kind == "signed":
+        if signature != "verified":
+            raise SystemExit(
+                f"FAIL CLOSED: {zip_name} signature_status={signature!r} "
+                "(required verified)"
+            )
+        if (
+            zip_name.startswith("CloudDataSanitizer-macos-")
+            and notarization != "verified"
+        ):
+            raise SystemExit(
+                f"FAIL CLOSED: {zip_name} notarization_status={notarization!r} "
+                "(required verified)"
+            )
+        if any(
+            token in str(value).lower()
+            for value in payload.values()
+            for token in ("pending", "unsigned", "not_attempted")
+        ):
+            raise SystemExit(
+                f"FAIL CLOSED: {trust_name} contains pending/unverified trust state: "
+                f"{payload}"
+            )
+    else:
+        expected_notarization = (
+            "not_attempted"
+            if zip_name.startswith("CloudDataSanitizer-macos-")
+            else "n/a"
         )
-    if zip_name.startswith("CloudDataSanitizer-macos-") and notarization != "verified":
-        raise SystemExit(
-            f"FAIL CLOSED: {zip_name} notarization_status={notarization!r} "
-            "(required verified)"
-        )
-    if any(
-        token in str(value).lower()
-        for value in payload.values()
-        for token in ("pending", "unsigned", "not_attempted")
-    ):
-        raise SystemExit(
-            f"FAIL CLOSED: {trust_name} contains pending/unverified trust state: {payload}"
-        )
+        if signature != "unsigned_evaluation":
+            raise SystemExit(
+                f"FAIL CLOSED: {zip_name} signature_status={signature!r} "
+                "(required unsigned_evaluation)"
+            )
+        if notarization != expected_notarization:
+            raise SystemExit(
+                f"FAIL CLOSED: {zip_name} notarization_status={notarization!r} "
+                f"(required {expected_notarization})"
+            )
     return {
         "signature_status": str(signature),
         "notarization_status": str(notarization),
@@ -87,6 +112,11 @@ def main() -> int:
     parser.add_argument("--commit", required=True)
     parser.add_argument("--input-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--release-kind",
+        choices=("signed", "evaluation"),
+        default="signed",
+    )
     parser.add_argument("--allow-incomplete", action="store_true")
     args = parser.parse_args()
 
@@ -124,7 +154,9 @@ def main() -> int:
         sidecar = args.output_dir / f"{filename}.sha256"
         sidecar.write_text(f"{digest}  {filename}\n", encoding="utf-8")
         sums_lines.append(f"{digest}  {filename}")
-        trust = load_trust(args.input_dir, filename)
+        trust = load_trust(
+            args.input_dir, filename, release_kind=args.release_kind
+        )
         os_name, arch = meta[filename]
         artifacts.append(
             {
@@ -150,6 +182,13 @@ def main() -> int:
         "repository": "https://github.com/motocmo/motoc-cloud-data-sanitizer",
         "source_tag": args.tag,
         "source_commit": args.commit,
+        "release_kind": args.release_kind,
+        "production_ready": args.release_kind == "signed",
+        "distribution_warning": (
+            None
+            if args.release_kind == "signed"
+            else "Unsigned evaluation build; operating systems may display security warnings."
+        ),
         "policy_version": "cds-policy-1",
         "locales": ["en-US", "zh-CN", "zh-HK"],
         "formats": ["csv", "xlsx"],
@@ -199,15 +238,25 @@ def main() -> int:
         "version": args.version,
         "source_tag": args.tag,
         "source_commit": args.commit,
+        "release_kind": args.release_kind,
+        "production_ready": args.release_kind == "signed",
         "build_time": build_time,
         "artifact_count": len(artifacts),
         "artifact_sha256": {item["filename"]: item["sha256"] for item in artifacts},
-        "notes": "Built on native GitHub-hosted runners with fail-closed signing gates.",
+        "notes": (
+            "Built on native GitHub-hosted runners with fail-closed signing gates."
+            if args.release_kind == "signed"
+            else "Built on native GitHub-hosted runners as an explicitly unsigned "
+            "evaluation build."
+        ),
     }
     (args.output_dir / "provenance.json").write_text(
         json.dumps(provenance, indent=2) + "\n", encoding="utf-8"
     )
-    print("Release aggregation complete (fail-closed gates passed)")
+    print(
+        f"{args.release_kind.capitalize()} release aggregation complete "
+        "(fail-closed gates passed)"
+    )
     return 0
 
 

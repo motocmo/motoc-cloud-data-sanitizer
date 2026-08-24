@@ -17,17 +17,12 @@ documentation alignment.
 - Confirm documentation intended for public users is accurate and free of
   internal process language
 
-## Required GitHub Environments / secrets
+## Evaluation build status
 
-### macos-notarization
-
-- `MACOS_CODESIGN_IDENTITY`
-- `MACOS_NOTARY_PROFILE` (notarytool keychain profile on the runner)
-
-### windows-signing
-
-- `WINDOWS_CERT_PATH`
-- `WINDOWS_CERT_PASSWORD` (optional if the certificate has no password)
+- macOS packages are unsigned and not notarized
+- Windows packages do not include an Authenticode signature
+- Packages are for evaluation only and may trigger operating system warnings
+- Do not describe evaluation packages as production-ready or enterprise releases
 
 ## Artifact verification
 
@@ -52,8 +47,9 @@ Also verify:
 
 - No automatic upload behavior in the product boundary
 - No cloud credential collection in the product boundary
-- Unsigned smoke packages must not be published as production assets
-- Prefer publisher signature / notarization checks when signing is configured
+- Every artifact must report `signature_status: unsigned_evaluation`
+- macOS artifacts must report `notarization_status: not_attempted`
+- Unsigned evaluation packages must not be published as production assets
 
 ## Documentation review
 
@@ -73,4 +69,5 @@ Steps:
 4. Perform Release Validation Review
 5. Promote the draft release only after approval
 
-Do not mark website downloads available until signed assets and checksums verify.
+Do not present website downloads as production-ready. Display the unsigned
+evaluation warning next to every download link.

@@ -58,17 +58,23 @@ Technical security detail: [Security Design](docs/public/SECURITY-DESIGN.md).
 
 For step-by-step usage, see the [User Guide](docs/public/USER-GUIDE.md).
 
+> **Unsigned evaluation build:** Current macOS packages are not code-signed or
+> notarized, and the Windows package does not include an Authenticode signature.
+> Your operating system may display an unknown-publisher or security warning.
+> Do not disable Gatekeeper, SmartScreen, or antivirus protections globally.
+
 ## Releases
 
-Future GitHub Releases will provide:
+Evaluation prereleases provide:
 
 - Platform packages for macOS arm64, macOS x64, and Windows x64
 - SHA-256 checksums
 - A release manifest
 - Security metadata such as SBOM and provenance records
 
-Verify checksums before use. Treat any pre-release or candidate build as evaluation
-only until maintainers publish an accepted release.
+Verify checksums before use. These packages are unsigned and intended for
+evaluation only. They are not production-ready releases. Publisher signing and
+macOS notarization may be added after product demand is validated.
 
 ## Developer Setup
 

@@ -19,6 +19,15 @@ billing CSV or XLSX files before you share them for analysis.
 2. Verify the published SHA-256 checksum
 3. Extract and launch `Cloud Data Sanitizer`
 
+Current packages are unsigned evaluation builds:
+
+- macOS packages are not code-signed or notarized. macOS may block the first
+  launch; use the standard Finder **Open** or **Privacy & Security** confirmation
+  flow if you trust the downloaded checksum.
+- The Windows package has no Authenticode signature. Microsoft Defender
+  SmartScreen may show **Unknown publisher**.
+- Do not disable Gatekeeper, SmartScreen, or antivirus protections globally.
+
 ### Development install
 
 ```bash
