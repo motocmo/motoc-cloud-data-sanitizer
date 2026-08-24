@@ -28,7 +28,7 @@ The application must not cross the network boundary while processing.
 | Supply-chain attacker | Trojans in release | Signed builds, checksums, provenance (release pipeline) |
 | Accidental operator | Overwrite source / leak secrets | Refuse overwrite; Restricted columns dropped; safe errors |
 
-## Explicit non-goals (Phase 1)
+## Explicit non-goals
 
 - Protecting against a fully compromised customer OS
 - Guaranteeing irreversible anonymization
@@ -39,4 +39,4 @@ The application must not cross the network boundary while processing.
 
 - Low-entropy identifiers may remain linkable within one customer key context
 - Key rotation intentionally breaks correlation; users must understand this
-- Unsigned local developer builds are not release evidence for CR-007
+- Unsigned local developer builds are not production release evidence
