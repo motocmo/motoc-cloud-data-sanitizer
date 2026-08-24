@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+.python-version
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Packaging
+*.spec.bak
+packaging/work/
+packaging/dist/
+release-artifacts/
+*.dmg
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Secrets and customer data (never commit)
+*.pem
+*.p12
+*.key
+customer-data/
+local-keys/
+*_LOCAL_MAPPING.*
+*.mapping.json
+
+# Local runtime
+.locale
+.session
+
+# ---------------------------------------------------------------------------
+# Public repository documentation governance
+# Internal engineering / AI / release-gate documents must never be committed.
+# ---------------------------------------------------------------------------
+docs/internal/
+*.internal.md
+**/*IMPLEMENTATION*.md
+**/*VALIDATION*.md
+**/*REVIEW*.md
+**/*TASK*.md
+**/*WORKFLOW*.md
+**/*ROADMAP*.md
+**/*GOVERNANCE*.md

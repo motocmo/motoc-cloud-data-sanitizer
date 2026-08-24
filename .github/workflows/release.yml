@@ -1,0 +1,191 @@
+# Protected release pipeline — triggered by immutable v* tags only.
+# Signing secrets are environment-scoped and never available to pull requests.
+# Publication FAIL CLOSED unless all three platforms are signed/notarized/verified.
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Reviewed third-party Action pins (commit SHAs).
+  # checkout v4.2.2, setup-python v5.4.0, upload-artifact v4.6.0, download-artifact v4.1.8
+  ACTION_CHECKOUT: 11bd71901bbe5b1630ceea73d27597364c9af683
+  ACTION_SETUP_PYTHON: 42375524e23c412d93fb67b49958b491fce71c38
+  ACTION_UPLOAD_ARTIFACT: 65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+  ACTION_DOWNLOAD_ARTIFACT: fa0a91b85d4f404e444e00e028009469f41c6c80
+
+jobs:
+  build-macos-arm64:
+    runs-on: macos-15
+    environment: macos-notarization
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.12"
+      - name: Build signed macOS arm64
+        env:
+          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+          MACOS_NOTARY_PROFILE: ${{ secrets.MACOS_NOTARY_PROFILE }}
+        run: |
+          test -n "$MACOS_CODESIGN_IDENTITY"
+          test -n "$MACOS_NOTARY_PROFILE"
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock.txt
+          pip install -e ".[dev,desktop]"
+          pytest -q
+          python scripts/build_pyinstaller.py --os macos --arch arm64
+          test -f packaging/dist/CloudDataSanitizer-macos-arm64.trust.json
+          python - <<'PY'
+          import json
+          trust=json.load(open("packaging/dist/CloudDataSanitizer-macos-arm64.trust.json"))
+          assert trust["signature_status"]=="verified", trust
+          assert trust["notarization_status"]=="verified", trust
+          PY
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: CloudDataSanitizer-macos-arm64
+          path: |
+            packaging/dist/CloudDataSanitizer-macos-arm64.zip
+            packaging/dist/CloudDataSanitizer-macos-arm64.zip.sha256
+            packaging/dist/CloudDataSanitizer-macos-arm64.trust.json
+          if-no-files-found: error
+
+  build-macos-x64:
+    runs-on: macos-15-intel
+    environment: macos-notarization
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.12"
+      - name: Build signed macOS x64
+        env:
+          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+          MACOS_NOTARY_PROFILE: ${{ secrets.MACOS_NOTARY_PROFILE }}
+        run: |
+          test -n "$MACOS_CODESIGN_IDENTITY"
+          test -n "$MACOS_NOTARY_PROFILE"
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock.txt
+          pip install -e ".[dev,desktop]"
+          pytest -q
+          python scripts/build_pyinstaller.py --os macos --arch x64
+          test -f packaging/dist/CloudDataSanitizer-macos-x64.trust.json
+          python - <<'PY'
+          import json
+          trust=json.load(open("packaging/dist/CloudDataSanitizer-macos-x64.trust.json"))
+          assert trust["signature_status"]=="verified", trust
+          assert trust["notarization_status"]=="verified", trust
+          PY
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: CloudDataSanitizer-macos-x64
+          path: |
+            packaging/dist/CloudDataSanitizer-macos-x64.zip
+            packaging/dist/CloudDataSanitizer-macos-x64.zip.sha256
+            packaging/dist/CloudDataSanitizer-macos-x64.trust.json
+          if-no-files-found: error
+
+  build-windows-x64:
+    runs-on: windows-2025
+    environment: windows-signing
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.12"
+      - name: Build Authenticode-signed Windows x64
+        env:
+          WINDOWS_CERT_PATH: ${{ secrets.WINDOWS_CERT_PATH }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        shell: bash
+        run: |
+          test -n "$WINDOWS_CERT_PATH"
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock.txt
+          pip install -e ".[dev,desktop]"
+          pytest -q
+          python scripts/build_pyinstaller.py --os windows --arch x64
+          test -f packaging/dist/CloudDataSanitizer-windows-x64.trust.json
+          python - <<'PY'
+          import json
+          trust=json.load(open("packaging/dist/CloudDataSanitizer-windows-x64.trust.json"))
+          assert trust["signature_status"]=="verified", trust
+          PY
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: CloudDataSanitizer-windows-x64
+          path: |
+            packaging/dist/CloudDataSanitizer-windows-x64.zip
+            packaging/dist/CloudDataSanitizer-windows-x64.zip.sha256
+            packaging/dist/CloudDataSanitizer-windows-x64.trust.json
+          if-no-files-found: error
+
+  aggregate:
+    runs-on: ubuntu-latest
+    needs: [build-macos-arm64, build-macos-x64, build-windows-x64]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e028009469f41c6c80
+        with:
+          path: release-artifacts
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.12"
+      - name: Fail closed if release set incomplete
+        run: |
+          set -euo pipefail
+          for name in \
+            CloudDataSanitizer-macos-arm64.zip \
+            CloudDataSanitizer-macos-x64.zip \
+            CloudDataSanitizer-windows-x64.zip
+          do
+            test -n "$(find release-artifacts -name "$name" | head -1)"
+          done
+      - name: Assemble checksums, manifest, SBOM, provenance
+        run: |
+          python scripts/assemble_release.py \
+            --version "${GITHUB_REF_NAME#v}" \
+            --tag "$GITHUB_REF_NAME" \
+            --commit "$GITHUB_SHA" \
+            --input-dir release-artifacts \
+            --output-dir release-artifacts/final
+          python - <<'PY'
+          import json
+          m=json.load(open("release-artifacts/final/release-manifest.json"))
+          assert m["source_tag"].startswith("v")
+          assert len(m["source_commit"])==40
+          assert len(m["artifacts"])==3
+          for art in m["artifacts"]:
+              assert art["signature_status"]=="verified", art
+              assert art["size_bytes"]>0
+          PY
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            release-artifacts/final/CloudDataSanitizer-macos-arm64.zip \
+            release-artifacts/final/CloudDataSanitizer-macos-arm64.zip.sha256 \
+            release-artifacts/final/CloudDataSanitizer-macos-x64.zip \
+            release-artifacts/final/CloudDataSanitizer-macos-x64.zip.sha256 \
+            release-artifacts/final/CloudDataSanitizer-windows-x64.zip \
+            release-artifacts/final/CloudDataSanitizer-windows-x64.zip.sha256 \
+            release-artifacts/final/SHA256SUMS.txt \
+            release-artifacts/final/release-manifest.json \
+            release-artifacts/final/sbom.cdx.json \
+            release-artifacts/final/provenance.json \
+            --title "$GITHUB_REF_NAME" \
+            --notes "Cloud Data Sanitizer $GITHUB_REF_NAME — signed local-first Free MVP artifacts." \
+            --verify-tag

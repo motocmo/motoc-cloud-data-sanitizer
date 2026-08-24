@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cloud-data-sanitizer"
+version = "0.1.0"
+description = "Local-first Cloud Data Sanitizer with HMAC-SHA-256 stable pseudonymization"
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+license = { text = "All Rights Reserved" }
+authors = [{ name = "MOTOC" }]
+dependencies = [
+  "openpyxl>=3.1,<4",
+  "keyring>=25.5,<26",
+]
+
+[project.optional-dependencies]
+desktop = [
+  "PySide6-Essentials>=6.9,<7",
+  "pyinstaller>=6.14,<7",
+]
+dev = [
+  "pytest>=8.4,<9",
+  "ruff>=0.11,<1",
+]
+
+[project.scripts]
+cloud-sanitize = "cloud_data_sanitizer.cli:main"
+cloud-data-sanitizer = "cloud_data_sanitizer.desktop:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+cloud_data_sanitizer = ["py.typed", "locales/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

@@ -1,0 +1,147 @@
+# CI — unsigned validation only (no signing secrets)
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock.txt
+          pip install -e ".[dev]"
+      - name: Lockfile portability guard
+        run: |
+          if grep -E '^(-e |.*file://|/Users/|C:\\\\Users\\\\)' requirements.lock.txt; then
+            echo "FAIL CLOSED: requirements.lock.txt contains absolute developer paths"
+            exit 1
+          fi
+      - name: Lint
+        run: ruff check src tests scripts
+      - name: Test
+        run: pytest -q
+      - name: Locale parity
+        run: python -c "from cloud_data_sanitizer.i18n import Translator; Translator('en-US')"
+      - name: Forbidden dependency scan
+        run: |
+          python - <<'PY'
+          import importlib.metadata as md
+          forbidden = {"requests", "httpx", "boto3", "botocore", "azure-identity", "google-cloud-storage"}
+          names = {d.metadata["Name"].lower() for d in md.distributions()}
+          hit = forbidden & names
+          assert not hit, hit
+          print("forbidden dependency scan: PASS")
+          PY
+
+  network-boundary:
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock.txt
+          pip install -e ".[dev]"
+          pytest -q tests/test_security_i18n.py tests/test_packaging_boundary.py tests/test_security_matrix.py
+          python scripts/os_deny_network_smoke.py --input tests/fixtures/synthetic/azure_sample.csv
+
+  macos-arm64-smoke:
+    runs-on: macos-15
+    needs: quality
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock.txt
+          pip install -e ".[dev,desktop]"
+          pytest -q
+          python scripts/build_pyinstaller.py --os macos --arch arm64 --unsigned
+          python scripts/inspect_package_network.py packaging/dist/CloudDataSanitizer-macos-arm64.zip
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: smoke-macos-arm64
+          path: packaging/dist/CloudDataSanitizer-macos-arm64.*
+          if-no-files-found: error
+
+  macos-x64-smoke:
+    runs-on: macos-15-intel
+    needs: quality
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock.txt
+          pip install -e ".[dev,desktop]"
+          pytest -q
+          python scripts/build_pyinstaller.py --os macos --arch x64 --unsigned
+          python scripts/inspect_package_network.py packaging/dist/CloudDataSanitizer-macos-x64.zip
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: smoke-macos-x64
+          path: packaging/dist/CloudDataSanitizer-macos-x64.*
+          if-no-files-found: error
+
+  windows-x64-smoke:
+    runs-on: windows-2025
+    needs: quality
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.12"
+      - shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock.txt
+          pip install -e ".[dev,desktop]"
+          pytest -q
+          python scripts/build_pyinstaller.py --os windows --arch x64 --unsigned
+          python scripts/inspect_package_network.py packaging/dist/CloudDataSanitizer-windows-x64.zip
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: smoke-windows-x64
+          path: packaging/dist/CloudDataSanitizer-windows-x64.*
+          if-no-files-found: error
+
+  release-set-contract:
+    runs-on: ubuntu-latest
+    needs: [macos-arm64-smoke, macos-x64-smoke, windows-x64-smoke]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e028009469f41c6c80
+        with:
+          path: smoke-artifacts
+      - name: Require all three native smoke ZIPs
+        run: |
+          set -euo pipefail
+          for name in \
+            CloudDataSanitizer-macos-arm64.zip \
+            CloudDataSanitizer-macos-x64.zip \
+            CloudDataSanitizer-windows-x64.zip
+          do
+            echo "checking $name"
+            test -n "$(find smoke-artifacts -name "$name" | head -1)"
+          done
+          echo "CDS-V-003 smoke release-set contract: PASS"
