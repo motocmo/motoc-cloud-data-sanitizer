@@ -1,11 +1,10 @@
 # MOTOC Cloud Data Sanitizer
 
-Privacy-first desktop software for preparing cloud billing files before FinOps
-analysis.
+**Securely prepare cloud billing data for FinOps analysis.**
 
-Cloud Data Sanitizer runs entirely on your device. It helps you inspect CSV and
-XLSX billing exports, protect sensitive identifiers, and produce an
-analysis-ready copy—without uploading data or connecting to cloud accounts.
+Process CSV and XLSX billing exports locally on your device, protect sensitive
+identifiers, and preserve the billing dimensions required for FinOps analysis—
+without uploading data or connecting to cloud accounts.
 
 ## Why it exists
 
@@ -13,20 +12,21 @@ FinOps analysis needs billing facts such as cost, currency, service, and usage
 period. It does not need raw account identifiers, host names, or credential-like
 columns.
 
-This tool prepares that safer local copy so you can share sanitized billing data
-on your own terms.
+This application prepares a safer local copy so you can share sanitized billing
+data on your own terms.
 
 ## What you get
 
 - **Local-first processing** — files never leave your device during sanitization
 - **CSV and XLSX support** — common cloud billing export formats
-- **Sensitive identifier protection** — HMAC-SHA-256 Stable Pseudonymization
-  (稳定假名化) with your local key
+- **Sensitive identifier protection** — HMAC-SHA-256 Stable Pseudonymization for
+  identifier protection without sharing original values
 - **Restricted credential handling** — credential-like columns are dropped, not
   masked and treated as safe
 - **Integrity checks** — SHA-256 sidecar for every sanitized output
-- **Languages** — `en-US`, `zh-CN`, `zh-HK`
-- **Platforms** — macOS Apple Silicon, macOS Intel, Windows x64
+- **Languages** — English (`en-US`), Simplified Chinese (`zh-CN`), and Hong Kong
+  Traditional Chinese (`zh-HK`)
+- **Platforms** — macOS Apple Silicon, macOS Intel, and Windows x64
 
 ## What it does not do
 
@@ -48,7 +48,31 @@ Technical security detail: [Security Design](docs/public/SECURITY-DESIGN.md).
 | [Security Policy](SECURITY.md) | Vulnerability reporters |
 | [Contributing](CONTRIBUTING.md) | Contributors |
 
-## Quick start
+## Desktop Application Quick Start
+
+1. Download the platform package from [GitHub Releases](https://github.com/motocmo/motoc-cloud-data-sanitizer/releases)
+2. Verify the SHA-256 checksum
+3. Launch the desktop application
+4. Select a CSV/XLSX billing export
+5. Generate sanitized billing output locally
+
+For step-by-step usage, see the [User Guide](docs/public/USER-GUIDE.md).
+
+## Releases
+
+Future GitHub Releases will provide:
+
+- Platform packages for macOS arm64, macOS x64, and Windows x64
+- SHA-256 checksums
+- A release manifest
+- Security metadata such as SBOM and provenance records
+
+Verify checksums before use. Treat any pre-release or candidate build as evaluation
+only until maintainers publish an accepted release.
+
+## Developer Setup
+
+For contributors and developers only.
 
 ```bash
 python3 -m venv .venv
@@ -59,7 +83,7 @@ pytest
 cloud-data-sanitizer
 ```
 
-CLI:
+CLI helpers for local development:
 
 ```bash
 cloud-sanitize inspect billing.csv --json
@@ -68,13 +92,8 @@ cloud-sanitize sanitize billing.csv billing_sanitized.csv \
 cloud-sanitize verify billing_sanitized.csv
 ```
 
-## Releases
-
-Download signed platform packages from GitHub Releases when published. Verify
-checksums before use. Release candidates are for evaluation and are not a final
-production declaration until maintainers confirm acceptance.
+See [Contributing](CONTRIBUTING.md) for contribution guidelines.
 
 ## License
 
-All Rights Reserved pending an explicit public licensing decision by the repository
-owner. See `LICENSE`.
+See [LICENSE](LICENSE) for usage terms.
