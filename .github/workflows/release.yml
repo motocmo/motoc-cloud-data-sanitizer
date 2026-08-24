@@ -115,7 +115,7 @@ jobs:
     needs: [build-macos-arm64, build-macos-x64, build-windows-x64]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e028009469f41c6c80
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
         with:
           path: release-artifacts
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
