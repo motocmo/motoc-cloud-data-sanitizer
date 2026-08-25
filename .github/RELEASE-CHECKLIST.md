@@ -19,7 +19,8 @@ documentation alignment.
 
 ## Evaluation build status
 
-- macOS packages are unsigned and not notarized
+- macOS packages have a verified ad-hoc integrity seal but no Developer ID
+  signature or notarization
 - Windows packages do not include an Authenticode signature
 - Packages are for evaluation only and may trigger operating system warnings
 - Do not describe evaluation packages as production-ready or enterprise releases
@@ -40,6 +41,8 @@ After a successful protected release workflow, confirm these assets exist:
 Also verify:
 
 - Artifact integrity against published checksums
+- macOS app integrity after ZIP extraction with `codesign --verify --deep --strict`
+- macOS framework symlinks survive the published ZIP round trip
 - Manifest version and commit SHA match the release tag
 - Security metadata is present and consistent
 

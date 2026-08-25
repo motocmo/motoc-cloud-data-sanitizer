@@ -21,9 +21,10 @@ billing CSV or XLSX files before you share them for analysis.
 
 Current packages are unsigned evaluation builds:
 
-- macOS packages are not code-signed or notarized. macOS may block the first
-  launch; use the standard Finder **Open** or **Privacy & Security** confirmation
-  flow if you trust the downloaded checksum.
+- macOS packages have an ad-hoc integrity seal but no Apple Developer ID signature
+  or notarization. macOS may block the first launch; Control-click the app in Finder,
+  choose **Open**, or use the standard **Privacy & Security** confirmation flow if
+  you trust the downloaded checksum.
 - The Windows package has no Authenticode signature. Microsoft Defender
   SmartScreen may show **Unknown publisher**.
 - Do not disable Gatekeeper, SmartScreen, or antivirus protections globally.

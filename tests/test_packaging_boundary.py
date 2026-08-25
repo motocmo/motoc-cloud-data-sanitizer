@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
+import plistlib
 import zipfile
 from pathlib import Path
 
@@ -126,6 +127,29 @@ def test_build_script_fails_closed_without_signing_env(monkeypatch: pytest.Monke
     build = importlib.import_module("scripts.build_pyinstaller")
     with pytest.raises(SystemExit, match="FAIL CLOSED"):
         build.sign_macos(Path("/tmp/CloudDataSanitizer.app"))
+
+
+def test_macos_version_metadata_is_written_before_bundle_sealing(
+    tmp_path: Path,
+) -> None:
+    from scripts import build_pyinstaller as build
+
+    info_path = tmp_path / "Info.plist"
+    with info_path.open("wb") as handle:
+        plistlib.dump(
+            {
+                "CFBundleIdentifier": "com.motoc.clouddatasanitizer",
+                "CFBundleShortVersionString": "0.0.0",
+            },
+            handle,
+        )
+
+    build.embed_macos_version(info_path)
+
+    with info_path.open("rb") as handle:
+        info = plistlib.load(handle)
+    assert info["CFBundleShortVersionString"] == build.PRODUCT_VERSION
+    assert info["CFBundleVersion"] == build.PRODUCT_VERSION
 
 
 def test_source_never_imports_qtnetwork_or_http_clients() -> None:

@@ -58,9 +58,10 @@ Technical security detail: [Security Design](docs/public/SECURITY-DESIGN.md).
 
 For step-by-step usage, see the [User Guide](docs/public/USER-GUIDE.md).
 
-> **Unsigned evaluation build:** Current macOS packages are not code-signed or
-> notarized, and the Windows package does not include an Authenticode signature.
-> Your operating system may display an unknown-publisher or security warning.
+> **Unsigned evaluation build:** Current macOS packages have an ad-hoc integrity
+> seal but no Apple Developer ID signature or notarization. The Windows package
+> does not include an Authenticode signature. Your operating system may display
+> an unknown-publisher or security warning.
 > Do not disable Gatekeeper, SmartScreen, or antivirus protections globally.
 
 ## Releases

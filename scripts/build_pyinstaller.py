@@ -13,9 +13,11 @@ import hashlib
 import json
 import os
 import platform
+import plistlib
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -90,6 +92,53 @@ def write_version_info(path: Path) -> None:
         + "\n",
         encoding="utf-8",
     )
+
+
+def embed_macos_version(info_path: Path) -> None:
+    with info_path.open("rb") as handle:
+        info = plistlib.load(handle)
+    info["CFBundleShortVersionString"] = PRODUCT_VERSION
+    info["CFBundleVersion"] = PRODUCT_VERSION
+    with info_path.open("wb") as handle:
+        plistlib.dump(info, handle, sort_keys=False)
+
+
+def seal_unsigned_macos_bundle(app_bundle: Path) -> None:
+    """Restore integrity after packaging without establishing publisher identity."""
+    subprocess.check_call(
+        ["codesign", "--force", "--deep", "--sign", "-", str(app_bundle)]
+    )
+    subprocess.check_call(
+        ["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app_bundle)]
+    )
+
+
+def archive_macos_bundle(app_bundle: Path, zip_path: Path) -> None:
+    """Create and round-trip verify a macOS archive while preserving symlinks."""
+    subprocess.check_call(
+        [
+            "ditto",
+            "-c",
+            "-k",
+            "--sequesterRsrc",
+            "--keepParent",
+            str(app_bundle),
+            str(zip_path),
+        ]
+    )
+    with tempfile.TemporaryDirectory(prefix="cds-package-verify-") as temporary:
+        subprocess.check_call(["ditto", "-x", "-k", str(zip_path), temporary])
+        extracted = Path(temporary) / app_bundle.name
+        subprocess.check_call(
+            [
+                "codesign",
+                "--verify",
+                "--deep",
+                "--strict",
+                "--verbose=2",
+                str(extracted),
+            ]
+        )
 
 
 def strip_optional_network_plugins(bundle: Path) -> None:
@@ -276,7 +325,7 @@ def main() -> int:
         "--add-data",
         f"{locales}{';' if os_name == 'windows' else ':'}locales",
         "--add-data",
-        f"{version_file}{';' if os_name == 'windows' else ':'}version.json",
+        f"{version_file}{';' if os_name == 'windows' else ':'}.",
         "--distpath",
         str(WORK / "dist"),
         "--workpath",
@@ -293,25 +342,9 @@ def main() -> int:
     bundle = WORK / "dist" / APP_NAME
     if os_name == "macos":
         bundle = WORK / "dist" / f"{APP_NAME}.app"
-        # Embed CFBundleShortVersionString via defaults if Info.plist exists.
         info = bundle / "Contents" / "Info.plist"
         if info.is_file():
-            subprocess.call(
-                [
-                    "/usr/libexec/PlistBuddy",
-                    "-c",
-                    f"Set :CFBundleShortVersionString {PRODUCT_VERSION}",
-                    str(info),
-                ]
-            )
-            subprocess.call(
-                [
-                    "/usr/libexec/PlistBuddy",
-                    "-c",
-                    f"Set :CFBundleVersion {PRODUCT_VERSION}",
-                    str(info),
-                ]
-            )
+            embed_macos_version(info)
 
     strip_optional_network_plugins(bundle)
     network_hits = inspect_bundle_for_forbidden_network(bundle)
@@ -323,6 +356,8 @@ def main() -> int:
 
     trust: dict[str, str]
     if is_unsigned:
+        if os_name == "macos":
+            seal_unsigned_macos_bundle(bundle)
         trust = {
             "signature_status": (
                 "unsigned_evaluation"
@@ -341,7 +376,9 @@ def main() -> int:
     zip_path = DIST / artifact_name(os_name, arch)
     if zip_path.exists():
         zip_path.unlink()
-    if bundle.is_dir():
+    if os_name == "macos":
+        archive_macos_bundle(bundle, zip_path)
+    elif bundle.is_dir():
         archive_base = DIST / zip_path.stem
         shutil.make_archive(
             str(archive_base), "zip", root_dir=bundle.parent, base_dir=bundle.name
